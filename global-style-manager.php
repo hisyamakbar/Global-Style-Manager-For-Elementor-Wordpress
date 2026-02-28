@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GSM
  * Description: Manage Elementor Custom Colors & Typography efficiently.
- * Version:     1.0.0
+ * Version:     1.1.0
  * License:     GPL2
  * Text Domain: global-style-manager
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('GSM_VER', '1.0.0');
+define('GSM_VER', '1.1.0');
 define('GSM_DIR', plugin_dir_path(__FILE__));
 define('GSM_URL', plugin_dir_url(__FILE__));
 
