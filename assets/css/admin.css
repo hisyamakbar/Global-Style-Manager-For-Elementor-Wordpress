@@ -816,13 +816,17 @@
     transition: transform 0.3s;
 }
 
-.gsm-accordion.open .gsm-icon-chevron {
+.gsm-accordion[open] .gsm-icon-chevron {
     transform: rotate(180deg);
 }
 
-.gsm-accordion.open .gsm-accordion-header,
+.gsm-accordion[open] .gsm-accordion-header,
 .gsm-font-card.open .gsm-font-header {
     border-bottom: 1px solid var(--gsm-border);
+}
+
+.gsm-accordion[open] .gsm-accordion-content {
+    display: block;
 }
 
 .gsm-accordion-content {
@@ -847,9 +851,19 @@
     overflow: hidden;
 }
 
-.gsm-font-card:hover {
-    border-color: var(--gsm-border-focus);
-    box-shadow: var(--gsm-shadow);
+.gsm-font-card--readonly {
+    border-left: 4px solid var(--gsm-border);
+    opacity: 0.85;
+}
+
+.gsm-font-card--readonly .gsm-font-header {
+    background: var(--gsm-bg-subtle);
+    cursor: default;
+}
+
+.gsm-font-card--readonly .gsm-font-title-input {
+    font-weight: 500;
+    color: var(--gsm-text-muted);
 }
 
 .gsm-font-header {

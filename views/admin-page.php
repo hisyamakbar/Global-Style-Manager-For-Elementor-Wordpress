@@ -159,7 +159,7 @@ if (!defined('ABSPATH')) {
             <div class="gsm-panel active" id="panel-colors" data-title="Global Colors"
                 data-subtitle="Define your theme's custom and system color palette">
                 <div class="gsm-panel-header">
-                    <h2>Custom Palette</h2>
+                    <h2>Custom Colors</h2>
                     <button id="btn-add-color" class="gsm-btn gsm-btn--secondary">Add Color</button>
                 </div>
 
@@ -167,7 +167,7 @@ if (!defined('ABSPATH')) {
 
                 <details class="gsm-accordion" id="sys-colors-wrap" style="display:none">
                     <summary class="gsm-accordion-header">
-                        <span>Read-only System Colors</span>
+                        <span>Default Elementor Colors</span>
                         <svg class="gsm-icon-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="6 9 12 15 18 9"></polyline>
@@ -183,7 +183,7 @@ if (!defined('ABSPATH')) {
             <div class="gsm-panel" id="panel-fonts" data-title="Typography"
                 data-subtitle="Configure global responsive typography settings">
                 <div class="gsm-panel-header">
-                    <h2>Global Fonts</h2>
+                    <h2>Custom Fonts</h2>
                     <button id="btn-add-font" class="gsm-btn gsm-btn--secondary">Add Font Style</button>
                 </div>
 
@@ -191,7 +191,7 @@ if (!defined('ABSPATH')) {
 
                 <details class="gsm-accordion" id="sys-fonts-wrap" style="display:none">
                     <summary class="gsm-accordion-header">
-                        <span>Read-only System Fonts</span>
+                        <span>Default Elementor Fonts</span>
                         <svg class="gsm-icon-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="6 9 12 15 18 9"></polyline>

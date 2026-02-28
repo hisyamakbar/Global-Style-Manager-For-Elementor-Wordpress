@@ -34,13 +34,13 @@ class GSM_Ajax
             wp_die();
         }
         if (!defined('ELEMENTOR_VERSION')) {
-            wp_send_json_error('Elementor tidak aktif.');
+            wp_send_json_error('Elementor is not active.');
             return;
         }
 
         $kid = $this->core->kit_id();
         if (!$kid) {
-            wp_send_json_error('Elementor Active Kit tidak ditemukan. Buka Elementor editor sekali dulu.');
+            wp_send_json_error('Elementor Active Kit not found. Please open the Elementor editor at least once.');
             return;
         }
 
@@ -70,20 +70,20 @@ class GSM_Ajax
             wp_die();
         }
         if (!defined('ELEMENTOR_VERSION')) {
-            wp_send_json_error('Elementor tidak aktif.');
+            wp_send_json_error('Elementor is not active.');
             return;
         }
 
         $kid = $this->core->kit_id();
         if (!$kid) {
-            wp_send_json_error('Kit tidak ditemukan.');
+            wp_send_json_error('Kit not found.');
             return;
         }
 
         $type = sanitize_text_field($_POST['type'] ?? 'both');
-        $payload = json_decode(stripslashes($_POST['data'] ?? '{}'), true);
+        $payload = json_decode(stripslashes($_POST['payload'] ?? '{}'), true);
         if (!is_array($payload)) {
-            wp_send_json_error('Data tidak valid.');
+            wp_send_json_error('Invalid data.');
             return;
         }
 
@@ -92,10 +92,12 @@ class GSM_Ajax
         if (in_array($type, ['colors', 'both'])) {
             $src = $type === 'both' ? ($payload['custom_colors'] ?? []) : $payload;
             $kit['custom_colors'] = $this->build_colors($src);
+            // System colors should never be updated from here.
         }
         if (in_array($type, ['fonts', 'both'])) {
             $src = $type === 'both' ? ($payload['custom_fonts'] ?? []) : $payload;
             $kit['custom_typography'] = $this->build_fonts($src);
+            // System typography should never be updated from here.
         }
 
         update_post_meta($kid, '_elementor_page_settings', $kit);
