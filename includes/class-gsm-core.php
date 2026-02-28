@@ -124,6 +124,7 @@ class GSM_Core
             'size_desktop' => $sz['d'],
             'size_tablet' => $sz['t'],
             'size_mobile' => $sz['m'],
+            'size_unit' => $sz['unit'] ?: 'px',
             'lh_desktop' => $lh['d'],
             'lh_tablet' => $lh['t'],
             'lh_mobile' => $lh['m'],

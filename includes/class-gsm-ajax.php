@@ -124,11 +124,16 @@ class GSM_Ajax
             if (empty($c['_id'])) {
                 return null;
             }
-            $hex = strtoupper(ltrim(sanitize_text_field($c['color'] ?? ''), '#'));
+            $color = trim(sanitize_text_field($c['color'] ?? ''));
+            // Only prepend # if it's NOT an rgba/hsla function
+            if (!preg_match('/^(rgba?|hsla?)\(/i', $color)) {
+                $color = '#' . ltrim($color, '#');
+            }
+
             return [
                 '_id' => sanitize_text_field($c['_id']),
                 'title' => sanitize_text_field($c['title'] ?? ''),
-                'color' => '#' . $hex,
+                'color' => $color,
             ];
         }, $colors)));
     }
@@ -185,7 +190,8 @@ class GSM_Ajax
             $ls_u = $f['ls_unit'] ?? 'px';
             $ws_u = $f['ws_unit'] ?? 'px';
 
-            foreach ($build_responsive($sz_d, $sz_t, $sz_m, 'px') as $sfx => $val) {
+            $sz_u = $f['size_unit'] ?? 'px';
+            foreach ($build_responsive($sz_d, $sz_t, $sz_m, $sz_u) as $sfx => $val) {
                 $res['typography_font_size' . $sfx] = $val;
             }
             foreach ($build_responsive($lh_d, $lh_t, $lh_m, $lh_u) as $sfx => $val) {

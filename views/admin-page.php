@@ -213,8 +213,7 @@ if (!defined('ABSPATH')) {
                         <button class="gsm-tab" data-jt="both">Full Blueprint</button>
                     </div>
                     <div class="gsm-header-actions">
-                        <button id="json-apply" class="gsm-btn gsm-btn--secondary">Apply to UI</button>
-                        <button id="json-save" class="gsm-btn gsm-btn--primary">Commit to Elementor</button>
+                        <button id="json-save" class="gsm-btn gsm-btn--primary">Commit Changes</button>
                     </div>
                 </div>
 

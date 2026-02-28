@@ -274,13 +274,26 @@
         if ($grid.sortable) {
             $grid.sortable({
                 handle: '.gsm-drag-handle',
+                placeholder: 'gsm-color-card-placeholder',
+                forcePlaceholderSize: true,
+                opacity: 0.9,
+                tolerance: 'pointer',
+                start: (e, ui) => {
+                    ui.placeholder.height(ui.helper.outerHeight());
+                },
                 update: () => {
                     const newArr = [];
                     $grid.find('.gsm-color-card').each(function () {
-                        newArr.push(State.custom_colors[$(this).attr('data-idx')]);
+                        const idx = $(this).attr('data-idx');
+                        newArr.push(State.custom_colors[idx]);
                     });
                     State.custom_colors = newArr;
-                    renderColors();
+                    // Don't full renderColors here, just sync state. 
+                    // Actually, we must sync data-idx on others too.
+                    // Let's do a quiet re-index.
+                    $grid.find('.gsm-color-card').each(function (i) {
+                        $(this).attr('data-idx', i);
+                    });
                     renderCSSVariables();
                     syncJsonEditor();
                 }
@@ -354,6 +367,9 @@
             $list.sortable({
                 handle: '.gsm-drag-handle',
                 axis: 'y',
+                placeholder: 'gsm-font-card-placeholder',
+                forcePlaceholderSize: true,
+                opacity: 0.9,
                 update: () => {
                     const newArr = [];
                     $list.find('.gsm-font-card').each(function () {
@@ -363,7 +379,10 @@
                         }
                     });
                     State.custom_fonts = newArr;
-                    renderFonts();
+                    // Quiet re-index
+                    $list.find('.gsm-font-card').each(function (i) {
+                        $(this).attr('data-idx', i);
+                    });
                     renderCSSVariables();
                     syncJsonEditor();
                 }
@@ -559,6 +578,7 @@
         syncProp('.js-lh', 'lh');
         syncProp('.js-ls', 'ls');
 
+        $card.find('.js-sz-unit').on('change', function () { State.custom_fonts[idx].size_unit = this.value; renderCSSVariables(); syncJsonEditor(); });
         $card.find('.js-lh-unit').on('change', function () { State.custom_fonts[idx].lh_unit = this.value; syncJsonEditor(); });
         $card.find('.js-ls-unit').on('change', function () { State.custom_fonts[idx].ls_unit = this.value; syncJsonEditor(); });
 
@@ -584,10 +604,28 @@
         if (!allSys.length) { $wrap.hide(); return; }
 
         $wrap.show();
-        const $grid = $('#sys-fonts-list').empty(); // This is the container in the accordion
+        const $grid = $('#sys-fonts-list').empty();
 
-        allSys.forEach((f, i) => {
-            appendFontCard($grid, f, i, true); // true for read-only
+        allSys.forEach((f) => {
+            const fam = f.typography_font_family || 'Inherit';
+            const wt = f.typography_font_weight || '400';
+            const size = f.size_desktop ? `${f.size_desktop}${f.size_unit || 'px'}` : '-';
+            const lh = f.lh_desktop ? `${f.lh_desktop}${f.lh_unit || 'em'}` : '-';
+
+            $grid.append(`
+                <div class="gsm-sys-font-item">
+                    <div class="gsm-sys-font-name">
+                        <span>${esc(f.title)}</span>
+                        <span class="gsm-sys-font-id">${esc(f._id)}</span>
+                    </div>
+                    <div class="gsm-sys-font-meta">
+                        Size: ${size} · LH: ${lh} · WT: ${wt}
+                    </div>
+                    <div class="gsm-sys-font-preview" style="font-family:'${fam}'; font-weight:${wt}; font-size: 16px; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--gsm-text-base);">
+                        The quick brown fox jumps over the lazy dog.
+                    </div>
+                </div>
+            `);
         });
     }
 
@@ -724,33 +762,31 @@
             }
         });
 
-        $('#json-apply').on('click', () => {
+        $('#json-save').on('click', function () {
             try {
-                const d = JSON.parse($('#json-editor').val());
-                if (State.jsonTab === 'colors') {
-                    if (!Array.isArray(d)) throw new Error('Root must be array');
+                const val = $('#json-editor').val();
+                const d = JSON.parse(val);
+                const type = State.jsonTab === 'both' ? 'both' : State.jsonTab;
+
+                // First: Apply to UI State
+                if (type === 'colors') {
+                    if (!Array.isArray(d)) throw new Error('Root must be an array for Colors');
                     State.custom_colors = d;
-                } else if (State.jsonTab === 'fonts') {
-                    if (!Array.isArray(d)) throw new Error('Root must be array');
+                } else if (type === 'fonts') {
+                    if (!Array.isArray(d)) throw new Error('Root must be an array for Typography');
                     State.custom_fonts = d;
                 } else {
                     if (d.custom_colors) State.custom_colors = d.custom_colors;
                     if (d.custom_fonts) State.custom_fonts = d.custom_fonts;
                 }
-                renderAll();
-                showToast('ok', 'Applied changes to UI.');
-            } catch (e) {
-                showToast('err', e.message);
-            }
-        });
 
-        $('#json-save').on('click', function () {
-            try {
-                const d = JSON.parse($('#json-editor').val());
-                const type = State.jsonTab === 'both' ? 'both' : State.jsonTab;
+                renderAll(); // Refresh UI
+
+                // Second: Commit to Elementor
                 saveToElementor(type, d, $(this));
+
             } catch (e) {
-                showToast('err', 'Invalid JSON syntax limit.');
+                showToast('err', 'JSON Error: ' + e.message);
             }
         });
     }

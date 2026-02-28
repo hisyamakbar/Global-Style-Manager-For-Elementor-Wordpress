@@ -562,11 +562,25 @@
     border-radius: var(--gsm-radius);
     padding: 24px;
     box-shadow: var(--gsm-shadow-sm);
-    transition: all var(--gsm-speed);
+    transition: all var(--gsm-speed), transform 0.1s, box-shadow 0.1s;
     position: relative;
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+.gsm-color-card.ui-sortable-helper {
+    transition: none !important;
+    box-shadow: var(--gsm-shadow-floating);
+    transform: scale(1.02);
+    z-index: 9999;
+}
+
+.gsm-color-card-placeholder {
+    background: var(--gsm-bg-subtle);
+    border: 2px dashed var(--gsm-border);
+    border-radius: var(--gsm-radius);
+    visibility: visible !important;
 }
 
 .gsm-color-card:hover {
@@ -847,8 +861,22 @@
     border: 1px solid var(--gsm-border);
     border-radius: var(--gsm-radius);
     box-shadow: var(--gsm-shadow-sm);
-    transition: all var(--gsm-speed);
+    transition: transform 0.2s, box-shadow 0.2s;
     overflow: hidden;
+}
+
+.gsm-font-card.ui-sortable-helper {
+    box-shadow: var(--gsm-shadow-floating);
+    transform: scale(1.01);
+    z-index: 9999;
+}
+
+.gsm-font-card-placeholder {
+    background: var(--gsm-bg-subtle);
+    border: 2px dashed var(--gsm-border);
+    border-radius: var(--gsm-radius);
+    height: 80px;
+    visibility: visible !important;
 }
 
 .gsm-font-card--readonly {
