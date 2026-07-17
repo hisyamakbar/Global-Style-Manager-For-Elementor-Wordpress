@@ -141,16 +141,9 @@
     function renderColors() {
         const $grid = $('#colors-grid').empty();
 
-        // Separate and display only non-system colors in the main grid
-        const systemNames = ['primary', 'secondary', 'text', 'accent'];
-        const customItems = State.custom_colors.filter(c => {
-            const id = (c._id || '').toLowerCase();
-            const title = (c.title || '').toLowerCase();
-            return !systemNames.some(name => id === name || title === name);
-        });
-
-        customItems.forEach((col) => {
-            const idx = State.custom_colors.indexOf(col);
+        // All custom colors are editable, including the default-named ones
+        // (primary/secondary/text/accent).
+        State.custom_colors.forEach((col, idx) => {
             let colorStr = (col.color || '000000').trim();
             // Preserve rgba/rgb/hsl strings without adding '#' and toUpperCase
             let hex = /^(rgba?|hsla?)\(/i.test(colorStr) ? colorStr : '#' + colorStr.replace('#', '').toUpperCase();
@@ -317,33 +310,54 @@
     function renderSysColors() {
         const $wrap = $('#sys-colors-wrap');
 
-        // Combine real system colors with default-named custom colors for categorization
-        const systemNames = ['primary', 'secondary', 'text', 'accent'];
-        const defaults = State.custom_colors.filter(c => {
-            const id = (c._id || '').toLowerCase();
-            const title = (c.title || '').toLowerCase();
-            return systemNames.some(name => id === name || title === name);
-        });
-
-        const allSys = [...defaults, ...State.system_colors];
-        if (!allSys.length) { $wrap.hide(); return; }
+        // Default-named custom colors now live in the main editable grid;
+        // this section only shows Elementor's own system colors — editable
+        // (color + title), but their _id stays locked since Elementor
+        // references primary/secondary/text/accent by id.
+        if (!State.system_colors.length) { $wrap.hide(); return; }
 
         $wrap.show();
         const $grid = $('#sys-colors-grid').empty();
 
-        allSys.forEach(c => {
+        State.system_colors.forEach((c, i) => {
             let colorStr = (c.color || '000000').trim();
             let isFunc = /^(rgba?|hsla?)\(/i.test(colorStr);
-            let hex = isFunc ? colorStr : '#' + colorStr.replace('#', '');
-            $grid.append(`
-                <div class="gsm-sys-color-item" data-color="${hex}">
-                    <div class="gsm-sys-swatch" style="background:${hex}"></div>
+            let disp = isFunc ? colorStr : '#' + colorStr.replace('#', '').toUpperCase();
+            let parsed = parseToRgba(disp);
+
+            const $item = $(`
+                <div class="gsm-sys-color-item" data-color="${disp}">
+                    <input type="color" class="gsm-sys-swatch js-sys-base" value="${parsed.hexBase}" style="padding:0;border:none;cursor:pointer;">
                     <div class="gsm-sys-info">
-                        <div class="gsm-sys-name">${esc(c.title)}</div>
-                        <div class="gsm-sys-hex">${hex} · ${esc(c._id)}</div>
+                        <input class="gsm-sys-name js-sys-title" type="text" value="${esc(c.title)}" style="border:none;background:transparent;padding:0;width:100%;font:inherit;color:inherit;">
+                        <input class="gsm-sys-hex js-sys-hex" type="text" value="${disp}" style="border:none;background:transparent;padding:0;width:100%;font:inherit;color:inherit;">
+                        <div class="gsm-sys-hex">${esc(c._id)}</div>
                     </div>
                 </div>
             `);
+            $grid.append($item);
+
+            const $base = $item.find('.js-sys-base');
+            const $hex = $item.find('.js-sys-hex');
+
+            $base.on('input', function () {
+                const val = this.value.toUpperCase();
+                State.system_colors[i].color = val.replace('#', '');
+                $hex.val(val);
+                syncJsonEditor();
+            });
+            $hex.on('change', function () {
+                let val = this.value.trim();
+                if (val && !val.startsWith('#') && !/^(rgba?|hsla?)\(/i.test(val)) val = '#' + val;
+                const p = parseToRgba(val);
+                $base.val(p.hexBase);
+                State.system_colors[i].color = val.replace('#', '');
+                syncJsonEditor();
+            });
+            $item.find('.js-sys-title').on('input', function () {
+                State.system_colors[i].title = this.value;
+                syncJsonEditor();
+            });
         });
     }
 
@@ -676,7 +690,7 @@
 
     function bindTopActions() {
         $('#btn-save-all').on('click', function () {
-            saveToElementor('both', { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts }, $(this));
+            saveToElementor('both', { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts, system_colors: State.system_colors }, $(this));
         });
 
         $('#btn-export').on('click', function () {
@@ -989,7 +1003,7 @@
     }
 
     function opt(val, sel, text) {
-        return `< option value = "${esc(val)}"${sel ? ' selected' : ''}> ${esc(text || val)}</option > `;
+        return `<option value="${esc(val)}"${sel ? ' selected' : ''}>${esc(text || val)}</option>`;
     }
 
     function esc(s) {
