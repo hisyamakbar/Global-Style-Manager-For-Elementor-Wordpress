@@ -1,0 +1,14 @@
+{
+  "name": "global-style-manager",
+  "private": true,
+  "version": "1.2.0",
+  "description": "Dev tooling for the GSM WordPress plugin (linting, packaging)",
+  "scripts": {
+    "lint": "eslint assets/js/admin.js",
+    "package": "bash scripts/package.sh"
+  },
+  "devDependencies": {
+    "eslint": "^9.19.0",
+    "globals": "^15.14.0"
+  }
+}

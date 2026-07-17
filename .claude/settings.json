@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *global-style-manager.php) h=$(grep -m1 \"Version:\" \"$f\" 2>/dev/null | grep -oE \"[0-9]+\\.[0-9]+\\.[0-9]+\"); c=$(grep -m1 \"GSM_VER\" \"$f\" 2>/dev/null | grep -oE \"[0-9]+\\.[0-9]+\\.[0-9]+\"); if [ -n \"$h\" ] && [ -n \"$c\" ] && [ \"$h\" != \"$c\" ]; then printf '{\"systemMessage\": \"GSM version mismatch: Version header is %s but GSM_VER constant is %s -- update both together in global-style-manager.php.\"}' \"$h\" \"$c\"; fi ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}
