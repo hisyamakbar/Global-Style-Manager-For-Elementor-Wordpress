@@ -989,7 +989,7 @@
     }
 
     function opt(val, sel, text) {
-        return `< option value = "${esc(val)}"${sel ? ' selected' : ''}> ${esc(text || val)}</option > `;
+        return `<option value="${esc(val)}"${sel ? ' selected' : ''}>${esc(text || val)}</option>`;
     }
 
     function esc(s) {
