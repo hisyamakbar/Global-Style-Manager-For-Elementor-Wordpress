@@ -45,6 +45,13 @@ class GSM_Ajax
         }
 
         $s = $this->core->kit_settings();
+        $doc = $this->core->kit_document();
+
+        // System colors/typography that were never customised are never
+        // saved to postmeta, so read them via the Document (which fills in
+        // Elementor's own control defaults) instead of the raw kit array.
+        $system_colors_raw = $doc ? $doc->get_settings('system_colors') : ($s['system_colors'] ?? []);
+        $system_typography_raw = $doc ? $doc->get_settings('system_typography') : ($s['system_typography'] ?? []);
 
         // ── Colors: normalise — strip leading # ──
         $custom_colors = array_map(function ($c) {
@@ -53,11 +60,11 @@ class GSM_Ajax
 
         $system_colors = array_map(function ($c) {
             return ['_id' => $c['_id'] ?? '', 'title' => $c['title'] ?? '', 'color' => strtoupper(ltrim($c['color'] ?? '', '#'))];
-        }, $s['system_colors'] ?? []);
+        }, is_array($system_colors_raw) ? $system_colors_raw : []);
 
         // ── Fonts: normalise to flat UI format ──
         $custom_fonts = array_map([$this->core, 'normalise_font'], $s['custom_typography'] ?? []);
-        $system_fonts = array_map([$this->core, 'normalise_font'], $s['system_typography'] ?? []);
+        $system_fonts = array_map([$this->core, 'normalise_font'], is_array($system_typography_raw) ? $system_typography_raw : []);
 
         wp_send_json_success(compact('custom_colors', 'system_colors', 'custom_fonts', 'system_fonts', 'kid'));
     }
@@ -90,18 +97,34 @@ class GSM_Ajax
         $kit = $this->core->kit_settings();
 
         if (in_array($type, ['colors', 'both'])) {
-            $src = $type === 'both' ? ($payload['custom_colors'] ?? []) : $payload;
-            $kit['custom_colors'] = $this->build_colors($src);
+            // The 'colors' type accepts either a flat array (custom colors
+            // only, for backwards compatibility with older exports) or a
+            // {custom_colors, system_colors} object like 'both' uses.
+            $is_object_payload = $type === 'both' || isset($payload['custom_colors']) || isset($payload['system_colors']);
+            $custom_src = $is_object_payload ? ($payload['custom_colors'] ?? []) : $payload;
+            $system_src = $is_object_payload ? ($payload['system_colors'] ?? null) : null;
+
+            $kit['custom_colors'] = $this->build_colors($custom_src);
             // System colors are editable too, but only overwritten when the
             // payload actually carries them (empty means the site has none).
-            if ($type === 'both' && !empty($payload['system_colors']) && is_array($payload['system_colors'])) {
-                $kit['system_colors'] = $this->build_colors($payload['system_colors']);
+            if (!empty($system_src) && is_array($system_src)) {
+                $kit['system_colors'] = $this->build_colors($system_src);
             }
         }
         if (in_array($type, ['fonts', 'both'])) {
-            $src = $type === 'both' ? ($payload['custom_fonts'] ?? []) : $payload;
-            $kit['custom_typography'] = $this->build_fonts($src);
-            // System typography should never be updated from here.
+            // The 'fonts' type accepts either a flat array (custom fonts
+            // only, for backwards compatibility with older exports) or a
+            // {custom_fonts, system_fonts} object like 'both' uses.
+            $is_object_payload = $type === 'both' || isset($payload['custom_fonts']) || isset($payload['system_fonts']);
+            $custom_src = $is_object_payload ? ($payload['custom_fonts'] ?? []) : $payload;
+            $system_src = $is_object_payload ? ($payload['system_fonts'] ?? null) : null;
+
+            $kit['custom_typography'] = $this->build_fonts($custom_src);
+            // System typography is editable too, but only overwritten when
+            // the payload actually carries them (empty means leave as-is).
+            if (!empty($system_src) && is_array($system_src)) {
+                $kit['system_typography'] = $this->build_fonts($system_src);
+            }
         }
 
         update_post_meta($kid, '_elementor_page_settings', $kit);
@@ -147,24 +170,27 @@ class GSM_Ajax
      */
     private function build_fonts(array $fonts): array
     {
-        return array_values(array_filter(array_map(function ($f) {
+        $breakpoints = $this->core->active_breakpoints();
+
+        // Reads {prop}_{bp_key} for every active breakpoint off $f and
+        // builds the Elementor-shaped responsive control set, keyed by
+        // suffix ('' for desktop, '_tablet', '_laptop', etc.) — whichever
+        // breakpoints are actually active on this site, not a hardcoded set.
+        $build_responsive = function ($f, $prop, $unit) use ($breakpoints) {
+            $res = [];
+            foreach ($breakpoints as $bp) {
+                $v = $f[$prop . '_' . $bp['key']] ?? null;
+                if ($v !== '' && $v !== null) {
+                    $res[$bp['suffix']] = ['size' => (float) $v, 'unit' => $unit, 'sizes' => []];
+                }
+            }
+            return $res;
+        };
+
+        return array_values(array_filter(array_map(function ($f) use ($build_responsive) {
             if (empty($f['_id'])) {
                 return null;
             }
-
-            $build_responsive = function ($d, $t, $m, $unit) {
-                $res = [];
-                if ($d !== '' && $d !== null) {
-                    $res[''] = ['size' => (float) $d, 'unit' => $unit, 'sizes' => []];
-                }
-                if ($t !== '' && $t !== null) {
-                    $res['_tablet'] = ['size' => (float) $t, 'unit' => $unit, 'sizes' => []];
-                }
-                if ($m !== '' && $m !== null) {
-                    $res['_mobile'] = ['size' => (float) $m, 'unit' => $unit, 'sizes' => []];
-                }
-                return $res;
-            };
 
             $res = [
                 '_id' => sanitize_text_field($f['_id']),
@@ -177,34 +203,21 @@ class GSM_Ajax
                 'typography_text_decoration' => sanitize_text_field($f['typography_text_decoration'] ?? 'none'),
             ];
 
-            $sz_d = $f['size_desktop'] ?? null;
-            $sz_t = $f['size_tablet'] ?? null;
-            $sz_m = $f['size_mobile'] ?? null;
-            $lh_d = $f['lh_desktop'] ?? null;
-            $lh_t = $f['lh_tablet'] ?? null;
-            $lh_m = $f['lh_mobile'] ?? null;
-            $ls_d = $f['ls_desktop'] ?? null;
-            $ls_t = $f['ls_tablet'] ?? null;
-            $ls_m = $f['ls_mobile'] ?? null;
-            $ws_d = $f['ws_desktop'] ?? null;
-            $ws_t = $f['ws_tablet'] ?? null;
-            $ws_m = $f['ws_mobile'] ?? null;
-
+            $sz_u = $f['size_unit'] ?? 'px';
             $lh_u = $f['lh_unit'] ?? 'em';
             $ls_u = $f['ls_unit'] ?? 'px';
             $ws_u = $f['ws_unit'] ?? 'px';
 
-            $sz_u = $f['size_unit'] ?? 'px';
-            foreach ($build_responsive($sz_d, $sz_t, $sz_m, $sz_u) as $sfx => $val) {
+            foreach ($build_responsive($f, 'size', $sz_u) as $sfx => $val) {
                 $res['typography_font_size' . $sfx] = $val;
             }
-            foreach ($build_responsive($lh_d, $lh_t, $lh_m, $lh_u) as $sfx => $val) {
+            foreach ($build_responsive($f, 'lh', $lh_u) as $sfx => $val) {
                 $res['typography_line_height' . $sfx] = $val;
             }
-            foreach ($build_responsive($ls_d, $ls_t, $ls_m, $ls_u) as $sfx => $val) {
+            foreach ($build_responsive($f, 'ls', $ls_u) as $sfx => $val) {
                 $res['typography_letter_spacing' . $sfx] = $val;
             }
-            foreach ($build_responsive($ws_d, $ws_t, $ws_m, $ws_u) as $sfx => $val) {
+            foreach ($build_responsive($f, 'ws', $ws_u) as $sfx => $val) {
                 $res['typography_word_spacing' . $sfx] = $val;
             }
 

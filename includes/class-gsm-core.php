@@ -21,6 +21,62 @@ class GSM_Core
     }
 
     /**
+     * Get the active Elementor Kit as a Document, so control defaults
+     * (e.g. system_colors/system_typography that were never customised
+     * and so were never saved to postmeta) are filled in the same way
+     * Elementor's own editor fills them.
+     */
+    public function kit_document()
+    {
+        $kid = $this->kit_id();
+        if (!$kid || !class_exists('\Elementor\Plugin')) {
+            return null;
+        }
+        return \Elementor\Plugin::$instance->documents->get($kid);
+    }
+
+    /**
+     * List the responsive breakpoints actually active on this site, ordered
+     * smallest to largest screen size, with 'desktop' as the implicit base
+     * breakpoint (no suffix) sitting between Laptop and Widescreen. Sourced
+     * from Elementor's Breakpoints Manager so sites with Laptop/Widescreen/
+     * Mobile Extra/Tablet Extra enabled get those columns too, instead of a
+     * hardcoded desktop/tablet/mobile set.
+     */
+    public function active_breakpoints(): array
+    {
+        if (class_exists('\Elementor\Plugin') && isset(\Elementor\Plugin::$instance->breakpoints)) {
+            // Smallest to largest screen size; 'desktop' is not a real
+            // Elementor breakpoint object (it's the implicit base/fallback
+            // value with no suffix), so it's spliced in by position here.
+            $order = ['mobile', 'mobile_extra', 'tablet', 'tablet_extra', 'laptop', 'desktop', 'widescreen'];
+            $active = \Elementor\Plugin::$instance->breakpoints->get_active_breakpoints();
+            $out = [];
+            foreach ($order as $key) {
+                if ($key === 'desktop') {
+                    $out[] = ['key' => 'desktop', 'label' => 'Desktop', 'suffix' => ''];
+                    continue;
+                }
+                if (isset($active[$key])) {
+                    $out[] = [
+                        'key' => $key,
+                        'label' => method_exists($active[$key], 'get_label') ? $active[$key]->get_label() : ucfirst(str_replace('_', ' ', $key)),
+                        'suffix' => '_' . $key,
+                    ];
+                }
+            }
+            return $out;
+        }
+
+        // Fallback for Elementor versions without a Breakpoints Manager.
+        return [
+            ['key' => 'mobile', 'label' => 'Mobile', 'suffix' => '_mobile'],
+            ['key' => 'tablet', 'label' => 'Tablet', 'suffix' => '_tablet'],
+            ['key' => 'desktop', 'label' => 'Desktop', 'suffix' => ''],
+        ];
+    }
+
+    /**
      * Get the settings of the active Elementor Kit.
      */
     public function kit_settings()
@@ -86,26 +142,39 @@ class GSM_Core
      */
     public function normalise_font(array $f): array
     {
-        $get_responsive = function ($base_key) use ($f) {
-            $d = $f[$base_key] ?? null;
-            $t = $f[$base_key . '_tablet'] ?? null;
-            $m = $f[$base_key . '_mobile'] ?? null;
-            return [
-                'd' => is_array($d) ? ($d['size'] ?? null) : null,
-                't' => is_array($t) ? ($t['size'] ?? null) : null,
-                'm' => is_array($m) ? ($m['size'] ?? null) : null,
-                'unit' => is_array($d) && !empty($d['unit']) ? $d['unit'] : null
-            ];
+        $breakpoints = $this->active_breakpoints();
+
+        // Returns ['{bp_key}' => size, ..., 'unit' => ...] for a given base
+        // control name (e.g. 'typography_font_size'), reading whichever
+        // breakpoint suffixes are actually active on this site instead of a
+        // hardcoded desktop/tablet/mobile set.
+        $get_responsive = function ($base_key) use ($f, $breakpoints) {
+            $out = ['unit' => null];
+            foreach ($breakpoints as $bp) {
+                $v = $f[$base_key . $bp['suffix']] ?? null;
+                $out[$bp['key']] = is_array($v) ? ($v['size'] ?? null) : null;
+                if ($bp['suffix'] === '' && is_array($v) && !empty($v['unit'])) {
+                    $out['unit'] = $v['unit'];
+                }
+            }
+            return $out;
         };
 
         $sz = $get_responsive('typography_font_size');
-        // Backwards capability fallback for sizes within typography_font_size['sizes']
-        if (empty($sz['t']) && empty($sz['m'])) {
+        // Backwards capability fallback: pre-multi-breakpoint Elementor
+        // stored tablet/mobile sizes nested under ['sizes'] instead of as
+        // separate '_tablet'/'_mobile' controls. This legacy shape only
+        // ever had tablet/mobile, never the newer breakpoints.
+        if (empty($sz['tablet'] ?? null) && empty($sz['mobile'] ?? null)) {
             $fs = $f['typography_font_size'] ?? [];
             if (is_array($fs) && !empty($fs['sizes'])) {
-                $sz['t'] = $fs['sizes']['tablet'] ?? $sz['t'];
-                $sz['m'] = $fs['sizes']['mobile'] ?? $sz['m'];
-                $sz['d'] = $fs['sizes']['desktop'] ?? $sz['d'];
+                if (isset($sz['tablet'])) {
+                    $sz['tablet'] = $fs['sizes']['tablet'] ?? $sz['tablet'];
+                }
+                if (isset($sz['mobile'])) {
+                    $sz['mobile'] = $fs['sizes']['mobile'] ?? $sz['mobile'];
+                }
+                $sz['desktop'] = $fs['sizes']['desktop'] ?? $sz['desktop'];
             }
         }
 
@@ -113,7 +182,7 @@ class GSM_Core
         $ls = $get_responsive('typography_letter_spacing');
         $ws = $get_responsive('typography_word_spacing');
 
-        return [
+        $out = [
             '_id' => $f['_id'] ?? '',
             'title' => $f['title'] ?? '',
             'typography_font_family' => $f['typography_font_family'] ?? '',
@@ -121,23 +190,20 @@ class GSM_Core
             'typography_font_style' => $f['typography_font_style'] ?? '',
             'typography_text_transform' => $f['typography_text_transform'] ?? 'none',
             'typography_text_decoration' => $f['typography_text_decoration'] ?? 'none',
-            'size_desktop' => $sz['d'],
-            'size_tablet' => $sz['t'],
-            'size_mobile' => $sz['m'],
             'size_unit' => $sz['unit'] ?: 'px',
-            'lh_desktop' => $lh['d'],
-            'lh_tablet' => $lh['t'],
-            'lh_mobile' => $lh['m'],
             'lh_unit' => $lh['unit'] ?: 'em',
-            'ls_desktop' => $ls['d'],
-            'ls_tablet' => $ls['t'],
-            'ls_mobile' => $ls['m'],
             'ls_unit' => $ls['unit'] ?: 'px',
-            'ws_desktop' => $ws['d'],
-            'ws_tablet' => $ws['t'],
-            'ws_mobile' => $ws['m'],
             'ws_unit' => $ws['unit'] ?: 'px',
         ];
+
+        foreach ($breakpoints as $bp) {
+            $out['size_' . $bp['key']] = $sz[$bp['key']];
+            $out['lh_' . $bp['key']] = $lh[$bp['key']];
+            $out['ls_' . $bp['key']] = $ls[$bp['key']];
+            $out['ws_' . $bp['key']] = $ws[$bp['key']];
+        }
+
+        return $out;
     }
 
     /**

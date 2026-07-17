@@ -284,7 +284,8 @@ if (!defined('ABSPATH')) {
   }
 ]</pre>
                     <p style="margin:0.5rem 0 0; font-size:12px;">Notes: System will preserve existing ID or
-                        auto-generate if missing.</p>
+                        auto-generate if missing. Any breakpoint suffix your site has active is supported (e.g.
+                        <code>size_laptop</code>, <code>size_widescreen</code>), not just desktop/tablet/mobile.</p>
                 </div>
 
                 <div class="gsm-editor-wrapper">

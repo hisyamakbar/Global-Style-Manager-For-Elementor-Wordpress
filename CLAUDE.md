@@ -51,8 +51,13 @@ Follow this pattern for any new AJAX action. The nonce action name is the litera
 
 ## Color/font save rules
 
-- `ajax_save()` writes `custom_colors` / `custom_typography`, and also `system_colors` when the payload carries a non-empty array of them (system colors are editable in the UI as of v1.2.x; their `_id`s stay locked because Elementor references primary/secondary/text/accent by id). System typography (`system_typography`) must still never be written from the save handler.
+- `ajax_save()` writes `custom_colors` / `custom_typography`, and also `system_colors` / `system_typography` when the payload carries a non-empty array of them (both are editable in the UI as of v1.2.x/1.3.x; their `_id`s stay locked because Elementor references primary/secondary/text/accent by id).
 - Colors are normalized without the `#` prefix internally, then re-added on save unless the value is `rgba()`/`hsla()` (see the regex check in `build_colors()`). Handle hex and rgba cases separately when touching color code.
+- `GSM_Core::kit_document()` (Document API, not raw postmeta) is how `system_colors`/`system_typography` get read when a site has never customized them — Elementor doesn't save its own control defaults to postmeta, so reading `$s['system_colors'] ?? []` directly returns empty even though the site clearly has default colors. Always read system_* through the Document, not the raw kit array.
+
+## Breakpoints
+
+Typography responsive fields (font size, line height, letter spacing, word spacing) are NOT hardcoded to desktop/tablet/mobile. `GSM_Core::active_breakpoints()` reads whatever breakpoints are actually active on the site from Elementor's Breakpoints Manager (`\Elementor\Plugin::$instance->breakpoints`) — a site can have anywhere from 2 to 7 (mobile, mobile_extra, tablet, tablet_extra, laptop, desktop, widescreen). `normalise_font()` (read) and `build_fonts()` (write) both loop over this list rather than assuming 3 fixed suffixes (`_tablet`/`_mobile`). The JS side mirrors this via `gsmCfg.activeBreakpoints` → the `BREAKPOINTS` const in `admin.js`, which drives the responsive table's columns in `appendFontCard()`. Don't reintroduce a literal `_tablet`/`_mobile` assumption in new code — always go through `active_breakpoints()`/`BREAKPOINTS`.
 
 ## Elementor Active Kit dependency
 
