@@ -51,7 +51,7 @@ Follow this pattern for any new AJAX action. The nonce action name is the litera
 
 ## Color/font save rules
 
-- `ajax_save()` only ever writes `custom_colors` / `custom_typography`. System (Elementor default) colors and fonts must never be updated from the save handler — preserve this separation in any new save logic.
+- `ajax_save()` writes `custom_colors` / `custom_typography`, and also `system_colors` when the payload carries a non-empty array of them (system colors are editable in the UI as of v1.2.x; their `_id`s stay locked because Elementor references primary/secondary/text/accent by id). System typography (`system_typography`) must still never be written from the save handler.
 - Colors are normalized without the `#` prefix internally, then re-added on save unless the value is `rgba()`/`hsla()` (see the regex check in `build_colors()`). Handle hex and rgba cases separately when touching color code.
 
 ## Elementor Active Kit dependency

@@ -92,7 +92,11 @@ class GSM_Ajax
         if (in_array($type, ['colors', 'both'])) {
             $src = $type === 'both' ? ($payload['custom_colors'] ?? []) : $payload;
             $kit['custom_colors'] = $this->build_colors($src);
-            // System colors should never be updated from here.
+            // System colors are editable too, but only overwritten when the
+            // payload actually carries them (empty means the site has none).
+            if ($type === 'both' && !empty($payload['system_colors']) && is_array($payload['system_colors'])) {
+                $kit['system_colors'] = $this->build_colors($payload['system_colors']);
+            }
         }
         if (in_array($type, ['fonts', 'both'])) {
             $src = $type === 'both' ? ($payload['custom_fonts'] ?? []) : $payload;
