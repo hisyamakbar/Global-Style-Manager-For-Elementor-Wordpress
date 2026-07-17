@@ -8,6 +8,11 @@
     if (typeof gsmCfg === 'undefined') return;
 
     const GFONTS = gsmCfg.gfonts || [];
+    const BREAKPOINTS = gsmCfg.activeBreakpoints && gsmCfg.activeBreakpoints.length ? gsmCfg.activeBreakpoints : [
+        { key: 'mobile', label: 'Mobile', suffix: '_mobile' },
+        { key: 'tablet', label: 'Tablet', suffix: '_tablet' },
+        { key: 'desktop', label: 'Desktop', suffix: '' },
+    ];
     const WEIGHTS = ['100', '200', '300', '400', '500', '600', '700', '800', '900'];
     const TRANSFORMS = ['none', 'uppercase', 'lowercase', 'capitalize'];
     const FONT_STYLES = ['', 'normal', 'italic', 'oblique'];
@@ -85,12 +90,14 @@
 
     function defFonts() {
         return [
-            mkFont('Primary Headline', 'Plus Jakarta Sans', '700', 48, 36, 28, 1.2, 1.2, 1.2, null, null, null, null, null, null, 'em', 'px', 'px'),
-            mkFont('Body Text', 'Plus Jakarta Sans', '400', 16, 15, 14, 1.6, 1.6, 1.6, null, null, null, null, null, null, 'em', 'px', 'px'),
+            mkFont('Primary Headline', 'Plus Jakarta Sans', '700', 48, 1.2),
+            mkFont('Body Text', 'Plus Jakarta Sans', '400', 16, 1.6),
         ];
     }
 
-    function mkFont(title, fam, wt, szD, szT, szM, lhD, lhT, lhM, lsD, lsT, lsM, wsD, wsT, wsM, lhU, lsU, wsU) {
+    // Seeds only the desktop (base) values — other active breakpoints are
+    // left unset until the user fills them in via the responsive table.
+    function mkFont(title, fam, wt, szD, lhD) {
         return {
             _id: generateId(), title,
             typography_font_family: fam,
@@ -98,10 +105,10 @@
             typography_font_style: '',
             typography_text_transform: 'none',
             typography_text_decoration: 'none',
-            size_desktop: szD, size_tablet: szT, size_mobile: szM,
-            lh_desktop: lhD, lh_tablet: lhT, lh_mobile: lhM, lh_unit: lhU,
-            ls_desktop: lsD, ls_tablet: lsT, ls_mobile: lsM, ls_unit: lsU,
-            ws_desktop: wsD, ws_tablet: wsT, ws_mobile: wsM, ws_unit: wsU,
+            size_desktop: szD, size_unit: 'px',
+            lh_desktop: lhD, lh_unit: 'em',
+            ls_unit: 'px',
+            ws_unit: 'px',
         };
     }
 
@@ -344,6 +351,7 @@
                 const val = this.value.toUpperCase();
                 State.system_colors[i].color = val.replace('#', '');
                 $hex.val(val);
+                renderCSSVariables();
                 syncJsonEditor();
             });
             $hex.on('change', function () {
@@ -352,6 +360,7 @@
                 const p = parseToRgba(val);
                 $base.val(p.hexBase);
                 State.system_colors[i].color = val.replace('#', '');
+                renderCSSVariables();
                 syncJsonEditor();
             });
             $item.find('.js-sys-title').on('input', function () {
@@ -365,15 +374,10 @@
     function renderFonts() {
         const $list = $('#fonts-list').empty();
 
-        const systemNames = ['primary', 'secondary', 'text', 'accent'];
-        const customItems = State.custom_fonts.filter(f => {
-            const id = (f._id || '').toLowerCase();
-            const title = (f.title || '').toLowerCase();
-            return !systemNames.some(name => id === name || title === name);
-        });
-
-        customItems.forEach((f) => {
-            const idx = State.custom_fonts.indexOf(f);
+        // All custom fonts are editable here, including default-named ones
+        // (primary/secondary/text/accent) — the real Elementor defaults live
+        // separately in State.system_fonts, rendered by renderSysFonts().
+        State.custom_fonts.forEach((f, idx) => {
             appendFontCard($list, f, idx, false);
         });
 
@@ -420,7 +424,11 @@
         });
     }
 
+    // isSys = true for the 4 default Elementor fonts (primary/secondary/text/accent):
+    // everything is editable except the CSS Variable ID (Elementor references
+    // those by fixed id) and reordering/deleting (fixed set of 4 slots).
     function appendFontCard($container, f, idx, isSys) {
+        const target = isSys ? State.system_fonts : State.custom_fonts;
         const fam = f.typography_font_family || 'Inter';
         const wt = f.typography_font_weight || '400';
 
@@ -435,14 +443,32 @@
             return units.map(u => `<option value="${u}" ${u === val ? 'selected' : ''}>${u || '-'}</option>`).join('');
         }
 
+        // shortClass drives the input's CSS class (js-sz/js-lh/js-ls/js-ws,
+        // matching the write-back bindings below); statePrefix is the actual
+        // State key prefix (size_*/lh_*/ls_*/ws_*) — they differ for size/sz.
+        function responsiveRow(label, shortClass, statePrefix, unit, step) {
+            const cells = BREAKPOINTS.map(bp => {
+                const v = f[`${statePrefix}_${bp.key}`];
+                return `<td><input type="number" ${step ? `step="${step}"` : ''} class="gsm-input js-${shortClass}" data-bp="${bp.key}" value="${v ?? ''}" placeholder="-" style="height:30px;"></td>`;
+            }).join('');
+            return `
+                <tr>
+                    <td class="gsm-rt-sticky-1"><label style="font-size:12px;color:#0f172a;">${label}</label></td>
+                    <td class="gsm-rt-sticky-2"><select class="gsm-select js-${shortClass}-unit" style="height:30px;">${mkUnit(unit)}</select></td>
+                    ${cells}
+                </tr>`;
+        }
+
+        const bpHeaders = BREAKPOINTS.map(bp => `<th>${esc(bp.label)}</th>`).join('');
+
         const cardHtml = `
-            <div class="gsm-font-card ${isSys ? 'gsm-font-card--readonly' : ''}" data-idx="${idx}">
+            <div class="gsm-font-card ${isSys ? 'gsm-font-card--system' : ''}" data-idx="${idx}">
                 <div class="gsm-font-header">
                     ${!isSys ? `
                     <span class="gsm-drag-handle">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>
                     </span>` : ''}
-                    <input class="gsm-font-title-input js-title" type="text" value="${esc(f.title)}" placeholder="Style Name" ${isSys ? 'disabled' : ''}>
+                    <input class="gsm-font-title-input js-title" type="text" value="${esc(f.title)}" placeholder="Style Name">
                     <div class="gsm-font-preview-text js-preview" style="font-family:'${fam}'; font-weight:${wt};">The quick brown fox jumps over the lazy dog.</div>
                     <svg class="gsm-icon-chevron js-toggle" width="16" height="16" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -451,7 +477,7 @@
                 </div>
 
                 <div class="gsm-font-body" style="display: none;">
-                    
+
                     <div class="gsm-font-grid-main">
                         <div class="gsm-field">
                             <label>CSS Variable ID</label>
@@ -463,7 +489,7 @@
                         <div class="gsm-field" style="grid-column: span 2;">
                             <label>Font Family</label>
                             <div class="gsm-ac-wrap">
-                                <input type="text" class="gsm-input js-family" value="${esc(fam)}" placeholder="Search Google Fonts..." ${isSys ? 'disabled' : ''}>
+                                <input type="text" class="gsm-input js-family" value="${esc(fam)}" placeholder="Search Google Fonts...">
                                 <div class="gsm-ac-list js-ac-list"></div>
                             </div>
                         </div>
@@ -472,63 +498,43 @@
                     <div class="gsm-font-grid-styles">
                         <div class="gsm-field">
                             <label>Weight</label>
-                            <select class="gsm-select js-wt" ${isSys ? 'disabled' : ''}>${wOpts}</select>
+                            <select class="gsm-select js-wt">${wOpts}</select>
                         </div>
                         <div class="gsm-field">
                             <label>Transform</label>
-                            <select class="gsm-select js-tt" ${isSys ? 'disabled' : ''}>${ttOpts}</select>
+                            <select class="gsm-select js-tt">${ttOpts}</select>
                         </div>
                         <div class="gsm-field">
                             <label>Style</label>
-                            <select class="gsm-select js-fs" ${isSys ? 'disabled' : ''}>${fsOpts}</select>
+                            <select class="gsm-select js-fs">${fsOpts}</select>
                         </div>
                         <div class="gsm-field">
                             <label>Decoration</label>
-                            <select class="gsm-select js-td" ${isSys ? 'disabled' : ''}>${tdOpts}</select>
+                            <select class="gsm-select js-td">${tdOpts}</select>
                         </div>
                     </div>
 
                     <!-- Responsive Table -->
-                    <table class="gsm-font-responsive-table">
-                        <thead>
-                            <tr>
-                                <th>Property</th>
-                                <th>Unit</th>
-                                <th>Desktop</th>
-                                <th>Tablet</th>
-                                <th>Mobile</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Size -->
-                            <tr>
-                                <td><label style="font-size:12px;color:#0f172a;">Font Size</label></td>
-                                <td><select class="gsm-select js-sz-unit" style="height:30px;" ${isSys ? 'disabled' : ''}>${mkUnit(f.size_unit || 'px')}</select></td>
-                                <td><input type="number" class="gsm-input js-sz" data-bp="desktop" value="${f.size_desktop || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" class="gsm-input js-sz" data-bp="tablet" value="${f.size_tablet || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" class="gsm-input js-sz" data-bp="mobile" value="${f.size_mobile || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                            </tr>
-                            <!-- Line Height -->
-                            <tr>
-                                <td><label style="font-size:12px;color:#0f172a;">Line Height</label></td>
-                                <td><select class="gsm-select js-lh-unit" style="height:30px;" ${isSys ? 'disabled' : ''}>${mkUnit(f.lh_unit || 'em')}</select></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-lh" data-bp="desktop" value="${f.lh_desktop || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-lh" data-bp="tablet" value="${f.lh_tablet || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-lh" data-bp="mobile" value="${f.lh_mobile || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                            </tr>
-                            <!-- Letter Spacing -->
-                            <tr>
-                                <td><label style="font-size:12px;color:#0f172a;">Letter Spacing</label></td>
-                                <td><select class="gsm-select js-ls-unit" style="height:30px;" ${isSys ? 'disabled' : ''}>${mkUnit(f.ls_unit || 'px')}</select></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-ls" data-bp="desktop" value="${f.ls_desktop || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-ls" data-bp="tablet" value="${f.ls_tablet || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                                <td><input type="number" step="0.1" class="gsm-input js-ls" data-bp="mobile" value="${f.ls_mobile || ''}" placeholder="-" style="height:30px;" ${isSys ? 'disabled' : ''}></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="gsm-table-scroll">
+                        <table class="gsm-font-responsive-table">
+                            <thead>
+                                <tr>
+                                    <th class="gsm-rt-sticky-1">Property</th>
+                                    <th class="gsm-rt-sticky-2">Unit</th>
+                                    ${bpHeaders}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${responsiveRow('Font Size', 'sz', 'size', f.size_unit || 'px')}
+                                ${responsiveRow('Line Height', 'lh', 'lh', f.lh_unit || 'em', '0.1')}
+                                ${responsiveRow('Letter Spacing', 'ls', 'ls', f.ls_unit || 'px', '0.1')}
+                                ${responsiveRow('Word Spacing', 'ws', 'ws', f.ws_unit || 'px', '0.1')}
+                            </tbody>
+                        </table>
+                    </div>
 
                 </div>
-                
+
                 ${!isSys ? `
                 <div class="gsm-font-footer">
                     <button class="gsm-btn gsm-btn--danger js-delete">Delete Style</button>
@@ -546,16 +552,15 @@
             $card.find('.gsm-font-body').slideToggle(200);
         });
 
-        if (isSys) return; // Only bind inputs for non-system fonts
-
-        $card.find('.js-title').on('input', function () { State.custom_fonts[idx].title = this.value; syncJsonEditor(); });
+        $card.find('.js-title').on('input', function () { target[idx].title = this.value; syncJsonEditor(); });
         $card.find('.js-id').on('input', function () {
+            if (isSys) return; // locked: Elementor references system fonts by fixed id
             const safeVal = this.value.replace(/[^a-z0-9-]/g, '').toLowerCase().slice(0, 15);
-            this.value = safeVal; State.custom_fonts[idx]._id = safeVal;
+            this.value = safeVal; target[idx]._id = safeVal;
             renderCSSVariables(); syncJsonEditor();
         });
 
-        // Autocomplete & other bindings remain for custom fonts...
+        // Autocomplete & other bindings
         const $fi = $card.find('.js-family');
         const $al = $card.find('.js-ac-list');
         $fi.on('input', function () {
@@ -570,20 +575,20 @@
             const v = $(this).data('v');
             $fi.val(v);
             $al.removeClass('open').empty();
-            State.custom_fonts[idx].typography_font_family = v;
+            target[idx].typography_font_family = v;
             $card.find('.js-preview').css('font-family', `'${v}'`);
             renderCSSVariables(); syncJsonEditor();
         });
 
-        $card.find('.js-wt').on('change', function () { State.custom_fonts[idx].typography_font_weight = this.value; $card.find('.js-preview').css('font-weight', this.value); renderCSSVariables(); syncJsonEditor(); });
-        $card.find('.js-tt').on('change', function () { State.custom_fonts[idx].typography_text_transform = this.value; syncJsonEditor(); });
-        $card.find('.js-fs').on('change', function () { State.custom_fonts[idx].typography_font_style = this.value; syncJsonEditor(); });
-        $card.find('.js-td').on('change', function () { State.custom_fonts[idx].typography_text_decoration = this.value; syncJsonEditor(); });
+        $card.find('.js-wt').on('change', function () { target[idx].typography_font_weight = this.value; $card.find('.js-preview').css('font-weight', this.value); renderCSSVariables(); syncJsonEditor(); });
+        $card.find('.js-tt').on('change', function () { target[idx].typography_text_transform = this.value; syncJsonEditor(); });
+        $card.find('.js-fs').on('change', function () { target[idx].typography_font_style = this.value; syncJsonEditor(); });
+        $card.find('.js-td').on('change', function () { target[idx].typography_text_decoration = this.value; syncJsonEditor(); });
 
         const syncProp = (cls, prop) => {
             $card.find(cls).on('input', function () {
                 const bp = $(this).data('bp');
-                State.custom_fonts[idx][`${prop}_${bp}`] = this.value !== '' ? parseFloat(this.value) : null;
+                target[idx][`${prop}_${bp}`] = this.value !== '' ? parseFloat(this.value) : null;
                 if (prop === 'size') renderCSSVariables();
                 syncJsonEditor();
             });
@@ -591,10 +596,14 @@
         syncProp('.js-sz', 'size');
         syncProp('.js-lh', 'lh');
         syncProp('.js-ls', 'ls');
+        syncProp('.js-ws', 'ws');
 
-        $card.find('.js-sz-unit').on('change', function () { State.custom_fonts[idx].size_unit = this.value; renderCSSVariables(); syncJsonEditor(); });
-        $card.find('.js-lh-unit').on('change', function () { State.custom_fonts[idx].lh_unit = this.value; syncJsonEditor(); });
-        $card.find('.js-ls-unit').on('change', function () { State.custom_fonts[idx].ls_unit = this.value; syncJsonEditor(); });
+        $card.find('.js-sz-unit').on('change', function () { target[idx].size_unit = this.value; renderCSSVariables(); syncJsonEditor(); });
+        $card.find('.js-lh-unit').on('change', function () { target[idx].lh_unit = this.value; syncJsonEditor(); });
+        $card.find('.js-ls-unit').on('change', function () { target[idx].ls_unit = this.value; syncJsonEditor(); });
+        $card.find('.js-ws-unit').on('change', function () { target[idx].ws_unit = this.value; syncJsonEditor(); });
+
+        if (isSys) return; // system fonts are a fixed set: not reorderable/deletable
 
         $card.find('.js-delete').on('click', () => {
             State.custom_fonts.splice(idx, 1);
@@ -607,39 +616,13 @@
     function renderSysFonts() {
         const $wrap = $('#sys-fonts-wrap');
 
-        const systemNames = ['primary', 'secondary', 'text', 'accent'];
-        const defaults = State.custom_fonts.filter(f => {
-            const id = (f._id || '').toLowerCase();
-            const title = (f.title || '').toLowerCase();
-            return systemNames.some(name => id === name || title === name);
-        });
-
-        const allSys = [...defaults, ...State.system_fonts];
-        if (!allSys.length) { $wrap.hide(); return; }
+        if (!State.system_fonts.length) { $wrap.hide(); return; }
 
         $wrap.show();
         const $grid = $('#sys-fonts-list').empty();
 
-        allSys.forEach((f) => {
-            const fam = f.typography_font_family || 'Inherit';
-            const wt = f.typography_font_weight || '400';
-            const size = f.size_desktop ? `${f.size_desktop}${f.size_unit || 'px'}` : '-';
-            const lh = f.lh_desktop ? `${f.lh_desktop}${f.lh_unit || 'em'}` : '-';
-
-            $grid.append(`
-                <div class="gsm-sys-font-item">
-                    <div class="gsm-sys-font-name">
-                        <span>${esc(f.title)}</span>
-                        <span class="gsm-sys-font-id">${esc(f._id)}</span>
-                    </div>
-                    <div class="gsm-sys-font-meta">
-                        Size: ${size} · LH: ${lh} · WT: ${wt}
-                    </div>
-                    <div class="gsm-sys-font-preview" style="font-family:'${fam}'; font-weight:${wt}; font-size: 16px; margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--gsm-text-base);">
-                        The quick brown fox jumps over the lazy dog.
-                    </div>
-                </div>
-            `);
+        State.system_fonts.forEach((f, i) => {
+            appendFontCard($grid, f, i, true);
         });
     }
 
@@ -654,6 +637,17 @@
             }
         });
 
+        if (State.system_colors.length) {
+            out += '\n  /* --- System Colors --- */\n';
+            State.system_colors.forEach(c => {
+                if (c._id) {
+                    const isFunc = /^(rgba?|hsla?)\(/i.test(c.color);
+                    const colorVal = isFunc ? c.color : `#${c.color}`;
+                    out += `  --e-global-color-${c._id}: ${colorVal};\n`;
+                }
+            });
+        }
+
         out += '\n  /* --- Custom Typography --- */\n';
         State.custom_fonts.forEach(f => {
             if (f._id) {
@@ -664,6 +658,19 @@
                 out += '\n';
             }
         });
+
+        if (State.system_fonts.length) {
+            out += '\n  /* --- System Typography --- */\n';
+            State.system_fonts.forEach(f => {
+                if (f._id) {
+                    out += `  /* ${f.title} */\n`;
+                    out += `  --e-global-typography-${f._id}-font-family: "${f.typography_font_family || 'Inherit'}";\n`;
+                    out += `  --e-global-typography-${f._id}-font-weight: ${f.typography_font_weight || 400};\n`;
+                    if (f.size_desktop) out += `  --e-global-typography-${f._id}-font-size: ${f.size_desktop}px;\n`;
+                    out += '\n';
+                }
+            });
+        }
         out += '}';
         $('#css-output').text(out);
     }
@@ -690,7 +697,7 @@
 
     function bindTopActions() {
         $('#btn-save-all').on('click', function () {
-            saveToElementor('both', { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts, system_colors: State.system_colors }, $(this));
+            saveToElementor('both', { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts, system_colors: State.system_colors, system_fonts: State.system_fonts }, $(this));
         });
 
         $('#btn-export').on('click', function () {
@@ -698,7 +705,9 @@
                 version: "5.0.0",
                 exported_at: new Date().toISOString(),
                 custom_colors: State.custom_colors,
-                custom_fonts: State.custom_fonts
+                custom_fonts: State.custom_fonts,
+                system_colors: State.system_colors,
+                system_fonts: State.system_fonts
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const a = document.createElement('a');
@@ -718,6 +727,8 @@
                     const d = JSON.parse(ev.target.result);
                     if (d.custom_colors) State.custom_colors = d.custom_colors;
                     if (d.custom_fonts) State.custom_fonts = d.custom_fonts;
+                    if (d.system_colors) State.system_colors = d.system_colors;
+                    if (d.system_fonts) State.system_fonts = d.system_fonts;
                     renderAll();
                     showToast('ok', 'Blueprint Imported! Click "Publish" to save.');
                 } catch (err) {
@@ -744,7 +755,11 @@
     /* --- JSON Logic --- */
     function syncJsonEditor() {
         const t = State.jsonTab;
-        const data = t === 'colors' ? State.custom_colors : t === 'fonts' ? State.custom_fonts : { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts };
+        const data = t === 'colors'
+            ? { custom_colors: State.custom_colors, system_colors: State.system_colors }
+            : t === 'fonts'
+                ? { custom_fonts: State.custom_fonts, system_fonts: State.system_fonts }
+                : { custom_colors: State.custom_colors, custom_fonts: State.custom_fonts, system_colors: State.system_colors, system_fonts: State.system_fonts };
         $('#json-editor').val(JSON.stringify(data, null, 2));
         validateJson();
     }
@@ -784,14 +799,30 @@
 
                 // First: Apply to UI State
                 if (type === 'colors') {
-                    if (!Array.isArray(d)) throw new Error('Root must be an array for Colors');
-                    State.custom_colors = d;
+                    if (Array.isArray(d)) {
+                        // Backwards-compat: a flat array means custom colors only.
+                        State.custom_colors = d;
+                    } else if (d && typeof d === 'object') {
+                        if (d.custom_colors) State.custom_colors = d.custom_colors;
+                        if (d.system_colors) State.system_colors = d.system_colors;
+                    } else {
+                        throw new Error('Root must be an array or a {custom_colors, system_colors} object for Colors');
+                    }
                 } else if (type === 'fonts') {
-                    if (!Array.isArray(d)) throw new Error('Root must be an array for Typography');
-                    State.custom_fonts = d;
+                    if (Array.isArray(d)) {
+                        // Backwards-compat: a flat array means custom fonts only.
+                        State.custom_fonts = d;
+                    } else if (d && typeof d === 'object') {
+                        if (d.custom_fonts) State.custom_fonts = d.custom_fonts;
+                        if (d.system_fonts) State.system_fonts = d.system_fonts;
+                    } else {
+                        throw new Error('Root must be an array or a {custom_fonts, system_fonts} object for Typography');
+                    }
                 } else {
                     if (d.custom_colors) State.custom_colors = d.custom_colors;
                     if (d.custom_fonts) State.custom_fonts = d.custom_fonts;
+                    if (d.system_colors) State.system_colors = d.system_colors;
+                    if (d.system_fonts) State.system_fonts = d.system_fonts;
                 }
 
                 renderAll(); // Refresh UI
@@ -879,7 +910,7 @@
                     d.forEach(f => {
                         if (typeof f !== 'object' || f === null) return;
 
-                        State.custom_fonts.push({
+                        const font = {
                             _id: f._id || generateId(),
                             title: f.title || 'Imported Font',
                             typography_font_family: f.typography_font_family || '',
@@ -887,22 +918,25 @@
                             typography_font_style: f.typography_font_style || '',
                             typography_text_transform: f.typography_text_transform || 'none',
                             typography_text_decoration: f.typography_text_decoration || 'none',
-                            size_desktop: (f.size_desktop !== undefined) ? f.size_desktop : null,
-                            size_tablet: (f.size_tablet !== undefined) ? f.size_tablet : null,
-                            size_mobile: (f.size_mobile !== undefined) ? f.size_mobile : null,
-                            lh_desktop: (f.lh_desktop !== undefined) ? f.lh_desktop : null,
-                            lh_tablet: (f.lh_tablet !== undefined) ? f.lh_tablet : null,
-                            lh_mobile: (f.lh_mobile !== undefined) ? f.lh_mobile : null,
+                            size_unit: f.size_unit || 'px',
                             lh_unit: f.lh_unit || 'em',
-                            ls_desktop: (f.ls_desktop !== undefined) ? f.ls_desktop : null,
-                            ls_tablet: (f.ls_tablet !== undefined) ? f.ls_tablet : null,
-                            ls_mobile: (f.ls_mobile !== undefined) ? f.ls_mobile : null,
                             ls_unit: f.ls_unit || 'px',
-                            ws_desktop: (f.ws_desktop !== undefined) ? f.ws_desktop : null,
-                            ws_tablet: (f.ws_tablet !== undefined) ? f.ws_tablet : null,
-                            ws_mobile: (f.ws_mobile !== undefined) ? f.ws_mobile : null,
                             ws_unit: f.ws_unit || 'px',
+                        };
+                        // Copy through responsive values for whichever breakpoints
+                        // are present in the imported JSON (not just this site's
+                        // currently active ones), so re-importing a blueprint
+                        // exported from a site with more breakpoints doesn't
+                        // silently drop data.
+                        ['size', 'lh', 'ls', 'ws'].forEach(prop => {
+                            Object.keys(f).forEach(k => {
+                                if (k.indexOf(prop + '_') === 0 && k !== prop + '_unit') {
+                                    font[k] = f[k];
+                                }
+                            });
                         });
+
+                        State.custom_fonts.push(font);
                         count++;
                     });
                 }

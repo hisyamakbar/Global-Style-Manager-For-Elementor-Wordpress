@@ -78,6 +78,7 @@ class GSM_Admin
             'has_pro' => defined('ELEMENTOR_PRO_VERSION'),
             'kit_id' => $this->core->kit_id(),
             'gfonts' => $this->core->gfonts(),
+            'activeBreakpoints' => $this->core->active_breakpoints(),
         ]);
     }
 

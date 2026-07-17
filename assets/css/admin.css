@@ -879,21 +879,6 @@
     visibility: visible !important;
 }
 
-.gsm-font-card--readonly {
-    border-left: 4px solid var(--gsm-border);
-    opacity: 0.85;
-}
-
-.gsm-font-card--readonly .gsm-font-header {
-    background: var(--gsm-bg-subtle);
-    cursor: default;
-}
-
-.gsm-font-card--readonly .gsm-font-title-input {
-    font-weight: 500;
-    color: var(--gsm-text-muted);
-}
-
 .gsm-font-header {
     padding: 20px 24px;
     background: var(--gsm-bg-subtle);
@@ -953,12 +938,6 @@
     gap: 20px;
 }
 
-.gsm-font-responsive-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 8px;
-}
-
 .gsm-font-responsive-table th {
     text-align: left;
     font-size: 11px;
@@ -985,43 +964,55 @@
     justify-content: flex-end;
 }
 
-/* System Fonts */
+/* System Fonts — same full editable cards as custom fonts (appendFontCard),
+   just a plain vertical list since these aren't sortable/deletable. */
 .gsm-list-sys-fonts {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 16px;
 }
 
-.gsm-sys-font-item {
-    padding: 16px;
+.gsm-font-card--system {
+    border-left: 4px solid var(--gsm-accent);
+}
+
+.gsm-font-card--system .gsm-font-header {
+    background: var(--gsm-bg-subtle);
+}
+
+/* Responsive breakpoint table: horizontally scrollable with the first two
+   columns (Property, Unit) pinned so it stays legible at any breakpoint
+   count (2 to 7 depending on site config). */
+.gsm-table-scroll {
+    overflow-x: auto;
+    margin-top: 8px;
+}
+
+.gsm-font-responsive-table {
+    width: 100%;
+    min-width: max-content;
+    border-collapse: collapse;
+}
+
+.gsm-font-responsive-table th,
+.gsm-font-responsive-table td {
+    min-width: 88px;
+}
+
+.gsm-rt-sticky-1,
+.gsm-rt-sticky-2 {
+    position: sticky;
     background: var(--gsm-bg-panel);
-    border: 1px solid var(--gsm-border);
-    border-radius: var(--gsm-radius-sm);
 }
 
-.gsm-sys-font-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--gsm-text-base);
-    margin-bottom: 4px;
-    display: flex;
-    justify-content: space-between;
+.gsm-rt-sticky-1 {
+    left: 0;
+    min-width: 112px !important;
 }
 
-.gsm-sys-font-id {
-    font-family: var(--gsm-font-mono);
-    font-size: 11px;
-    color: var(--gsm-text-muted);
-    background: var(--gsm-bg-app);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-weight: 500;
-}
-
-.gsm-sys-font-meta {
-    font-size: 12px;
-    color: var(--gsm-text-muted);
-    line-height: 1.6;
+.gsm-rt-sticky-2 {
+    left: 112px;
+    min-width: 76px !important;
 }
 
 /* Tab Group */
